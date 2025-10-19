@@ -1,0 +1,1420 @@
+import React, { useState, useEffect } from 'react';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Badge } from '../components/ui/badge';
+import { Progress } from '../components/ui/progress';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { 
+  Sun, Home, Leaf, Calculator, TrendingUp, Zap, Battery, Award, Download,
+  ArrowRight, CheckCircle, Settings, Wrench, Clock, Shield, MapPin,
+  DollarSign, Calendar, Gauge, Info, AlertTriangle, Star
+} from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { getSystemRecommendations } from '../utils/solarCalculator';
+
+const ResultsPage = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [results, setResults] = useState(null);
+  const [formData, setFormData] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    try {
+      // Get data from navigation state (preferred) or localStorage (fallback)
+      let resultsData = null;
+      let formDataState = null;
+
+      if (location.state?.results) {
+        resultsData = location.state.results;
+        formDataState = location.state.formData;
+      } else {
+        // Fallback to localStorage
+        const storedResults = localStorage.getItem('solarResults');
+        const storedFormData = localStorage.getItem('solarFormData');
+        
+        if (storedResults && storedFormData) {
+          try {
+            resultsData = JSON.parse(storedResults);
+            formDataState = JSON.parse(storedFormData);
+          } catch (error) {
+            console.error('Error parsing stored data:', error);
+            setError('Error loading stored data');
+          }
+        }
+      }
+      
+      if (resultsData && formDataState) {
+        // Validate critical data exists
+        if (!resultsData.systemSize || !resultsData.equipment) {
+          throw new Error('Invalid results data structure');
+        }
+
+        setResults(resultsData);
+        setFormData(formDataState);
+        
+        // Generate recommendations
+        try {
+          const systemRecommendations = getSystemRecommendations(resultsData);
+          setRecommendations(systemRecommendations || []);
+        } catch (error) {
+          console.error('Error generating recommendations:', error);
+          setRecommendations([]);
+        }
+      } else {
+        // Redirect to calculator if no data
+        console.warn('No results data found, redirecting to calculator');
+        navigate('/calculator');
+      }
+    } catch (err) {
+      console.error('Error in ResultsPage useEffect:', err);
+      setError(err.message);
+    }
+  }, [navigate, location.state]);
+
+  const exportTechnicalReport = () => {
+    if (!results || !formData) {
+      alert('No data available to export');
+      return;
+    }
+
+    try {
+      // Create downloadable content with safe property access
+      const reportContent = `
+SOLAR SYSTEM TECHNICAL REPORT
+Generated: ${new Date().toLocaleDateString()}
+Project: Solar System Design - ${formData.city}, ${formData.region}
+
+SYSTEM SPECIFICATIONS
+====================================
+Nominal System Size: ${results.systemSize} kW
+Actual System Size: ${results.actualSystemSize || results.systemSize} kW
+Annual Production: ${results.annualProduction.toLocaleString()} kWh
+Daily Production: ${results.dailyProduction} kWh
+Performance Ratio: ${results.performanceRatio}%
+System Efficiency: ${results.systemEfficiency}%
+
+EQUIPMENT SPECIFICATIONS
+====================================
+Solar Panels: ${results.equipment.panels.quantity}x ${results.equipment.panels.brand} ${results.equipment.panels.model}
+Total Panel Power: ${results.equipment.panels.totalWattage}W
+Inverter: ${results.equipment.inverter.brand} ${results.equipment.inverter.model} (${results.equipment.inverter.power}W)
+Batteries: ${results.equipment.batteries.quantity}x ${results.equipment.batteries.brand} ${results.equipment.batteries.model}
+Total Battery Capacity: ${Math.round(results.equipment.batteries.totalEnergyCapacity)} kWh
+
+ECONOMIC ANALYSIS
+====================================
+Total System Cost: $${results.economics.totalSystemCost.toLocaleString()}
+Cost per kW: $${results.economics.costPerKw.toLocaleString()}
+Annual Savings: $${results.economics.annualSavings.toLocaleString()}
+Simple Payback: ${results.economics.simplePayback} years
+25-year NPV: $${results.economics.npv25Years.toLocaleString()}
+LCOE: $${results.economics.lcoe}/kWh
+
+INSTALLATION TIMELINE
+====================================
+${results.installationGuide.phases.map(phase => 
+`${phase.phase} (${phase.duration})
+${phase.tasks.map(task => `- ${task}`).join('\n')}
+`).join('\n')}
+
+This report was generated by SolarCalc Lebanon using real Lebanese solar data and market equipment specifications.
+      `;
+
+      // Create and download file
+      const blob = new Blob([reportContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Solar_Technical_Report_${formData.city}_${new Date().toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error exporting report:', err);
+      alert('Error exporting report. Please try again.');
+    }
+  };
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sky-50 to-amber-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center text-red-600">
+              <AlertTriangle className="mr-2 h-6 w-6" />
+              Error Loading Results
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-700 mb-4">{error}</p>
+            <Button onClick={() => navigate('/calculator')} className="w-full">
+              <Calculator className="mr-2 h-4 w-4" />
+              Return to Calculator
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (!results || !formData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sky-50 to-amber-50 flex items-center justify-center">
+        <div className="text-center">
+          <Calculator className="h-12 w-12 text-amber-500 mx-auto mb-4 animate-spin" />
+          <p className="text-gray-600">Loading your solar system analysis...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const MonthlyProductionChart = ({ data }) => {
+    if (!data || data.length === 0) return <p className="text-gray-500">No production data available</p>;
+    
+    const maxProduction = Math.max(...data.map(m => m.production));
+    
+    return (
+      <div className="space-y-2">
+        {data.map((month, index) => (
+          <div key={index} className="flex items-center space-x-3">
+            <div className="w-16 text-sm font-medium text-gray-600">{month.month}</div>
+            <div className="flex-1">
+              <div className="flex items-center space-x-2">
+                <Progress 
+                  value={(month.production / maxProduction) * 100} 
+                  className="flex-1 h-3" 
+                />
+                <div className="text-sm font-medium text-gray-700 w-20 text-right">
+                  {month.production} kWh
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-amber-50">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Sun className="h-8 w-8 text-amber-500" />
+              <span className="text-2xl font-bold text-gray-900">SolarCalc Lebanon</span>
+            </div>
+            <div className="flex space-x-3">
+              <Button variant="outline" onClick={() => navigate('/calculator')}>
+                <Calculator className="mr-2 h-4 w-4" />
+                New Calculation
+              </Button>
+              <Button variant="outline" onClick={exportTechnicalReport}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Report
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Success Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <CheckCircle className="h-16 w-16 text-green-500" />
+          </div>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            Your Solar System Design is Ready!
+          </h1>
+          <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+            Professional technical specifications for {formData.city}, {results.location?.region || formData.region} • 
+            {results.loadAnalysis?.totalDailyConsumption || 0} kWh daily consumption • 
+            {results.systemSize} kW solar system
+          </p>
+        </div>
+
+        {/* System Recommendations */}
+        {recommendations.length > 0 && (
+          <div className="mb-8 space-y-4">
+            {recommendations.map((rec, index) => (
+              <Alert 
+                key={index} 
+                className={`${
+                  rec.type === 'warning' ? 'border-amber-200 bg-amber-50' : 
+                  rec.type === 'info' ? 'border-blue-200 bg-blue-50' : 
+                  'border-green-200 bg-green-50'
+                }`}
+              >
+                {rec.type === 'warning' ? 
+                  <AlertTriangle className="h-4 w-4 text-amber-600" /> : 
+                  <Info className="h-4 w-4 text-blue-600" />
+                }
+                <AlertDescription className={`${
+                  rec.type === 'warning' ? 'text-amber-800' : 
+                  rec.type === 'info' ? 'text-blue-800' : 
+                  'text-green-800'
+                }`}>
+                  {rec.message}
+                </AlertDescription>
+              </Alert>
+            ))}
+          </div>
+        )}
+
+        {/* Key Performance Indicators */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="text-center bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
+            <CardHeader className="pb-3">
+              <Sun className="h-8 w-8 text-amber-600 mx-auto" />
+              <CardTitle className="text-lg text-amber-900">Solar Array</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-amber-700">{results.equipment?.panels?.quantity || 0}</div>
+              <p className="text-sm text-amber-600">{results.equipment?.panels?.wattage || 0}W panels</p>
+              <p className="text-xs text-amber-500">{results.systemSize} kW total capacity</p>
+            </CardContent>
+          </Card>
+
+          <Card className="text-center bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
+            <CardHeader className="pb-3">
+              <Zap className="h-8 w-8 text-blue-600 mx-auto" />
+              <CardTitle className="text-lg text-blue-900">Power System</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-700">
+                {((results.equipment?.inverter?.power || 0)/1000).toFixed(1)}kW
+              </div>
+              <p className="text-sm text-blue-600">{results.equipment?.inverter?.brand || 'N/A'}</p>
+              <p className="text-xs text-blue-500">{results.equipment?.inverter?.efficiency || 0}% efficiency</p>
+            </CardContent>
+          </Card>
+
+          <Card className="text-center bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+            <CardHeader className="pb-3">
+              <Battery className="h-8 w-8 text-green-600 mx-auto" />
+              <CardTitle className="text-lg text-green-900">Energy Storage</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-700">
+                {Math.round(results.equipment?.batteries?.totalEnergyCapacity || 0)}
+              </div>
+              <p className="text-sm text-green-600">kWh capacity</p>
+              <p className="text-xs text-green-500">
+                {Math.round(results.equipment?.batteries?.autonomyProvided || 24)} hrs backup
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="text-center bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
+            <CardHeader className="pb-3">
+              <DollarSign className="h-8 w-8 text-purple-600 mx-auto" />
+              <CardTitle className="text-lg text-purple-900">Investment</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-purple-700">
+                ${((results.economics?.totalSystemCost || 0)/1000).toFixed(0)}k
+              </div>
+              <p className="text-sm text-purple-600">
+                {results.economics?.simplePayback || 0} yr payback
+              </p>
+              <p className="text-xs text-purple-500">
+                ${results.economics?.costPerKw || 0}/kW installed
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="equipment">Equipment</TabsTrigger>
+            <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="economics">Economics</TabsTrigger>
+            <TabsTrigger value="installation">Installation</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* System Specifications */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Settings className="mr-2 h-5 w-5" />
+                    System Specifications
+                  </CardTitle>
+                  <CardDescription>Key technical parameters</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-gray-600">System Size</div>
+                        <div className="font-semibold">{results.systemSize} kW DC</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Performance Ratio</div>
+                        <div className="font-semibold">{results.performanceRatio}%</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">System Efficiency</div>
+                        <div className="font-semibold">{results.systemEfficiency}%</div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-gray-600">Annual Production</div>
+                        <div className="font-semibold">{results.annualProduction.toLocaleString()} kWh</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Daily Average</div>
+                        <div className="font-semibold">{results.dailyProduction} kWh</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Peak Sun Hours</div>
+                        <div className="font-semibold">{results.location?.peakSunHours || 4.5} hrs</div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Location Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <MapPin className="mr-2 h-5 w-5" />
+                    Location Analysis
+                  </CardTitle>
+                  <CardDescription>Site-specific solar conditions</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-gray-600">Location</div>
+                        <div className="font-semibold">{formData.city}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Solar Irradiance</div>
+                        <div className="font-semibold">{results.location?.annualIrradiance || 1650} kWh/m²/yr</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Climate</div>
+                        <div className="font-semibold capitalize">{results.location?.region || formData.region}</div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-gray-600">Roof Direction</div>
+                        <div className="font-semibold capitalize">{formData.roofDirection}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Available Area</div>
+                        <div className="font-semibold">{formData.roofSize} m²</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Shading</div>
+                        <div className="font-semibold capitalize">{formData.shading}</div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Load Analysis Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Gauge className="mr-2 h-5 w-5" />
+                  Energy Load Analysis
+                </CardTitle>
+                <CardDescription>Your energy consumption breakdown</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {results.loadAnalysis?.totalDailyConsumption || 0}
+                    </div>
+                    <div className="text-sm text-gray-600">Daily Consumption (kWh)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-amber-600">
+                      {((results.loadAnalysis?.peakSimultaneousLoad || 0)/1000).toFixed(1)}
+                    </div>
+                    <div className="text-sm text-gray-600">Peak Load (kW)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {((results.loadAnalysis?.averageHourlyLoad || 0)/1000).toFixed(1)}
+                    </div>
+                    <div className="text-sm text-gray-600">Average Load (kW)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {Math.round((results.loadAnalysis?.loadFactor || 0.5) * 100)}%
+                    </div>
+                    <div className="text-sm text-gray-600">Load Factor</div>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  <strong>Note:</strong> Load factor of {Math.round((results.loadAnalysis?.loadFactor || 0.5) * 100)}% indicates 
+                  {(results.loadAnalysis?.loadFactor || 0.5) > 0.6 ? ' excellent energy usage efficiency' : 
+                   (results.loadAnalysis?.loadFactor || 0.5) > 0.4 ? ' good energy usage efficiency' : 
+                   ' room for improvement in energy usage patterns'}.
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="equipment" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Solar Panels */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Sun className="mr-2 h-5 w-5 text-amber-500" />
+                    Solar Panel Array
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Brand & Model:</span>
+                      <span className="font-medium">
+                        {results.equipment?.panels?.brand || 'N/A'} {results.equipment?.panels?.model || ''}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Quantity:</span>
+                      <span className="font-medium">{results.equipment?.panels?.quantity || 0} panels</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Power per Panel:</span>
+                      <span className="font-medium">{results.equipment?.panels?.wattage || 0}W</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Array Power:</span>
+                      <span className="font-medium">
+                        {((results.equipment?.panels?.totalWattage || 0)/1000).toFixed(1)} kW
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Efficiency:</span>
+                      <span className="font-medium">{results.equipment?.panels?.efficiency || 0}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Warranty:</span>
+                      <span className="font-medium">{results.equipment?.panels?.warranty || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Estimated Cost:</span>
+                      <span className="font-medium">
+                        ${(results.equipment?.panels?.totalCost || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  {results.equipment?.panels?.marketNote && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                      {results.equipment.panels.marketNote}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Inverter System */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Zap className="mr-2 h-5 w-5 text-blue-500" />
+                    Inverter System
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Brand & Model:</span>
+                      <span className="font-medium">
+                        {results.equipment?.inverter?.brand || 'N/A'} {results.equipment?.inverter?.model || ''}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Type:</span>
+                      <span className="font-medium">{results.equipment?.inverter?.type || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Continuous Power:</span>
+                      <span className="font-medium">
+                        {((results.equipment?.inverter?.power || 0)/1000).toFixed(1)} kW
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Surge Power:</span>
+                      <span className="font-medium">
+                        {results.equipment?.inverter?.surgePower ? 
+                          ((results.equipment.inverter.surgePower/1000).toFixed(1) + ' kW') : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">System Voltage:</span>
+                      <span className="font-medium">
+                        {results.equipment?.inverter?.inputVoltage || results.equipment?.inverter?.voltage || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Efficiency:</span>
+                      <span className="font-medium">{results.equipment?.inverter?.efficiency || 0}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Estimated Cost:</span>
+                      <span className="font-medium">
+                        ${(results.equipment?.inverter?.totalCost || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  {results.equipment?.inverter?.marketNote && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                      {results.equipment.inverter.marketNote}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Battery Storage */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Battery className="mr-2 h-5 w-5 text-green-500" />
+                    Battery Storage
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Brand & Model:</span>
+                      <span className="font-medium">
+                        {results.equipment?.batteries?.brand || 'N/A'} {results.equipment?.batteries?.model || ''}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Quantity:</span>
+                      <span className="font-medium">{results.equipment?.batteries?.quantity || 0} units</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Technology:</span>
+                      <span className="font-medium">{results.equipment?.batteries?.type || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Capacity:</span>
+                      <span className="font-medium">
+                        {Math.round(results.equipment?.batteries?.totalEnergyCapacity || 0)} kWh
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Backup Duration:</span>
+                      <span className="font-medium">
+                        {Math.round(results.equipment?.batteries?.autonomyProvided || 24)} hours
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Cycle Life:</span>
+                      <span className="font-medium">
+                        {results.equipment?.batteries?.cycles?.toLocaleString() || 'N/A'} cycles
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Estimated Cost:</span>
+                      <span className="font-medium">
+                        ${(results.equipment?.batteries?.totalCost || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  {results.equipment?.batteries?.marketNote && (
+                    <div className="mt-4 p-3 bg-green-50 rounded-lg text-sm text-green-700">
+                      {results.equipment.batteries.marketNote}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Charge Controller */}
+              {results.equipment?.chargeController && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Award className="mr-2 h-5 w-5 text-purple-500" />
+                      Charge Controller
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Brand & Model:</span>
+                        <span className="font-medium">
+                          {results.equipment.chargeController.brand} {results.equipment.chargeController.model}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Type:</span>
+                        <span className="font-medium">{results.equipment.chargeController.type}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Current Rating:</span>
+                        <span className="font-medium">{results.equipment.chargeController.current}A</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Estimated Cost:</span>
+                        <span className="font-medium">
+                          ${(results.equipment.chargeController.totalCost || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    {results.equipment.chargeController.marketNote && (
+                      <div className="mt-4 p-3 bg-purple-50 rounded-lg text-sm text-purple-700">
+                        {results.equipment.chargeController.marketNote}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Cost Breakdown */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <DollarSign className="mr-2 h-5 w-5 text-green-500" />
+                  Equipment Cost Breakdown
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Solar Panels:</span>
+                    <span className="font-medium">
+                      ${(results.equipment?.costs?.equipment?.panels || results.equipment?.panels?.totalCost || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Inverter System:</span>
+                    <span className="font-medium">
+                      ${(results.equipment?.costs?.equipment?.inverter || results.equipment?.inverter?.totalCost || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Battery Storage:</span>
+                    <span className="font-medium">
+                      ${(results.equipment?.costs?.equipment?.batteries || results.equipment?.batteries?.totalCost || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Installation & Labor:</span>
+                    <span className="font-medium">
+                      ${((results.equipment?.costs?.equipment?.installation || 0) + (results.equipment?.costs?.equipment?.labor || 0)).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Permits & Commissioning:</span>
+                    <span className="font-medium">
+                      ${((results.equipment?.costs?.equipment?.permits || 0) + (results.equipment?.costs?.equipment?.commissioning || 0)).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="border-t pt-3 flex justify-between items-center text-lg font-semibold">
+                    <span>Total System Cost:</span>
+                    <span>
+                      ${(results.equipment?.costs?.total || results.economics?.totalSystemCost || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-600 text-center">
+                    ${(results.equipment?.costs?.perWatt || ((results.economics?.totalSystemCost || 0) / (results.systemSize * 1000))).toFixed(2)}/W installed cost
+                  </div>
+                </div>
+                {results.marketNotes?.priceDisclaimer && (
+                  <div className="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <div className="flex items-start">
+                      <Info className="h-5 w-5 text-amber-600 mr-2 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-amber-800">
+                        <strong>Pricing Note:</strong> {results.marketNotes.priceDisclaimer}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="performance" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Monthly Production Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5" />
+                    Monthly Energy Production
+                  </CardTitle>
+                  <CardDescription>Expected monthly solar generation</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <MonthlyProductionChart data={results.monthlyProduction || []} />
+                  {results.monthlyProduction && results.monthlyProduction.length > 0 && (
+                    <div className="mt-4 text-sm text-gray-600">
+                      Peak production months: {results.monthlyProduction
+                        .sort((a, b) => b.production - a.production)
+                        .slice(0, 3)
+                        .map(m => m.month)
+                        .join(', ')
+                      }
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Performance Metrics */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Gauge className="mr-2 h-5 w-5" />
+                    Performance Metrics
+                  </CardTitle>
+                  <CardDescription>System efficiency and performance indicators</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Performance Ratio:</span>
+                      <div className="flex items-center">
+                        <Progress value={results.performanceRatio} className="w-20 mr-2" />
+                        <span className="font-medium">{results.performanceRatio}%</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">System Efficiency:</span>
+                      <div className="flex items-center">
+                        <Progress value={results.systemEfficiency} className="w-20 mr-2" />
+                        <span className="font-medium">{results.systemEfficiency}%</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Specific Yield:</span>
+                      <span className="font-medium">
+                        {Math.round(results.annualProduction / results.systemSize)} kWh/kW/year
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Capacity Factor:</span>
+                      <span className="font-medium">
+                        {Math.round((results.annualProduction / (results.systemSize * 8760)) * 100)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Solar Irradiance:</span>
+                      <span className="font-medium">
+                        {results.location?.annualIrradiance || 1650} kWh/m²/year
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Appliance Analysis */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Home className="mr-2 h-5 w-5" />
+                  Detailed Load Analysis
+                </CardTitle>
+                <CardDescription>Energy consumption breakdown by appliance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b">
+                      <tr>
+                        <th className="text-left py-2">Appliance</th>
+                        <th className="text-right py-2">Quantity</th>
+                        <th className="text-right py-2">Power (W)</th>
+                        <th className="text-right py-2">Hours/Day</th>
+                        <th className="text-right py-2">Daily kWh</th>
+                        <th className="text-right py-2">Monthly Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {results.applianceAnalysis && results.applianceAnalysis.length > 0 ? (
+                        <>
+                          {results.applianceAnalysis.map((app, index) => (
+                            <tr key={index}>
+                              <td className="py-2 font-medium">{app.name}</td>
+                              <td className="text-right py-2">{app.quantity}</td>
+                              <td className="text-right py-2">{app.totalWatts}</td>
+                              <td className="text-right py-2">{app.hoursPerDay}</td>
+                              <td className="text-right py-2">{app.dailyKwh}</td>
+                              <td className="text-right py-2">${app.monthlyCost}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t font-semibold">
+                            <td className="py-2">Total</td>
+                            <td className="text-right py-2">-</td>
+                            <td className="text-right py-2">
+                              {results.applianceAnalysis.reduce((sum, app) => sum + app.totalWatts, 0)}
+                            </td>
+                            <td className="text-right py-2">-</td>
+                            <td className="text-right py-2">
+                              {results.loadAnalysis?.totalDailyConsumption || 0}
+                            </td>
+                            <td className="text-right py-2">
+                              ${results.applianceAnalysis.reduce((sum, app) => sum + app.monthlyCost, 0).toFixed(2)}
+                            </td>
+                          </tr>
+                        </>
+                      ) : (
+                        <tr>
+                          <td colSpan="6" className="text-center py-4 text-gray-500">
+                            No appliance analysis available
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="economics" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Investment Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <DollarSign className="mr-2 h-5 w-5" />
+                    Investment Analysis
+                  </CardTitle>
+                  <CardDescription>Financial performance of your solar investment</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Investment:</span>
+                      <span className="font-semibold text-lg">
+                        ${(results.economics?.totalSystemCost || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Cost per kW:</span>
+                      <span className="font-medium">
+                        ${(results.economics?.costPerKw || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Annual Savings:</span>
+                      <span className="font-medium text-green-600">
+                        ${(results.economics?.annualSavings || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Simple Payback:</span>
+                      <span className="font-medium">{results.economics?.simplePayback || 0} years</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">25-Year NPV:</span>
+                      <span className="font-medium text-green-600">
+                        ${(results.economics?.npv25Years || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">ROI (25 years):</span>
+                      <span className="font-medium">{results.economics?.roi25Years || 0}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Levelized COE:</span>
+                      <span className="font-medium">${results.economics?.lcoe || 0}/kWh</span>
+                    </div>
+                  </div>
+                  {results.economics?.economicNote && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                      <Info className="h-4 w-4 inline mr-1" />
+                      {results.economics.economicNote}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Environmental Impact */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Leaf className="mr-2 h-5 w-5 text-green-500" />
+                    Environmental Impact
+                  </CardTitle>
+                  <CardDescription>Your contribution to environmental sustainability</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-center mb-4">
+                    <div className="text-3xl font-bold text-green-600 mb-1">
+                      {(results.economics?.lifetimeCO2Avoided || 0).toLocaleString()} kg
+                    </div>
+                    <div className="text-sm text-gray-600">CO₂ avoided over 25 years</div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Annual CO₂ Reduction:</span>
+                      <span className="font-medium">
+                        {(results.economics?.annualCO2Avoided || 0).toLocaleString()} kg/year
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Equivalent Trees Planted:</span>
+                      <span className="font-medium">
+                        {Math.round((results.economics?.lifetimeCO2Avoided || 0) / 22)} trees
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Cars Removed (per year):</span>
+                      <span className="font-medium">
+                        {Math.round((results.economics?.annualCO2Avoided || 0) / 4600)} cars
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-4 p-3 bg-green-50 rounded-lg text-sm text-green-800">
+                    Your solar system will offset its manufacturing carbon footprint in approximately 2-3 years.
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Financial Timeline */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Calendar className="mr-2 h-5 w-5" />
+                  Financial Timeline
+                </CardTitle>
+                <CardDescription>Your investment returns over time</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Year 1</div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        ${(results.economics?.annualSavings || 0).toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-600">First year savings</div>
+                    </div>
+                    <div className="p-4 bg-green-50 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Year 5</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        ${Math.round((results.economics?.annualSavings || 0) * 5 * 1.05).toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-600">Cumulative savings</div>
+                    </div>
+                    <div className="p-4 bg-purple-50 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Year 25</div>
+                      <div className="text-2xl font-bold text-purple-600">
+                        ${(results.economics?.npv25Years || 0).toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-600">Net present value</div>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold mb-3">Break-even Analysis</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <div className="flex-1">
+                          <Progress 
+                            value={Math.min(100, (1 / (results.economics?.simplePayback || 1)) * 100)} 
+                            className="h-2"
+                          />
+                        </div>
+                        <span className="ml-3 text-sm font-medium">
+                          {results.economics?.simplePayback || 0} years to break even
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        After breaking even, you'll continue saving approximately $
+                        {(results.economics?.annualSavings || 0).toLocaleString()} per year for the remaining 
+                        system lifetime.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="installation" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Clock className="mr-2 h-5 w-5" />
+                  Installation Timeline & Guide
+                </CardTitle>
+                <CardDescription>
+                  Professional installation process for your solar system
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-center mb-2">
+                    <Calendar className="h-5 w-5 text-blue-600 mr-2" />
+                    <span className="font-semibold text-blue-900">
+                      Estimated Duration: {results.installationGuide?.totalDuration || '8-13 working days'}
+                    </span>
+                  </div>
+                  <div className="text-sm text-blue-700">
+                    Includes design finalization, permits, installation, and commissioning
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {results.installationGuide?.phases && results.installationGuide.phases.length > 0 ? (
+                    results.installationGuide.phases.map((phase, index) => (
+                      <div key={index} className="border-l-4 border-blue-500 pl-4">
+                        <div className="flex items-center mb-2">
+                          <Shield className="h-5 w-5 text-blue-600 mr-2" />
+                          <h4 className="font-bold text-lg text-orange-400">{phase.phase}</h4>
+                          <Badge variant="secondary" className="ml-2">{phase.duration}</Badge>
+                        </div>
+                        {phase.description && (
+                          <p className="text-gray-300 mb-3">{phase.description}</p>
+                        )}
+                        <ul className="space-y-1 mb-4">
+                          {phase.tasks && phase.tasks.map((task, taskIndex) => (
+                            <li key={taskIndex} className="flex items-start text-sm">
+                              <CheckCircle className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
+                              {task}
+                            </li>
+                          ))}
+                        </ul>
+                        {phase.requirements && phase.requirements.length > 0 && (
+                          <div className="bg-gray-50 p-3 rounded-lg mb-2">
+                            <div className="font-medium text-gray-600 mb-2">Requirements:</div>
+                            <ul className="text-black space-y-1">
+                              {phase.requirements.map((req, reqIndex) => (
+                                <li key={reqIndex} className="flex items-start">
+                                  <Info className="h-3 w-3 text-blue-500 mr-1 mt-0.5 flex-shrink-0" />
+                                  {req}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {phase.safetyNote && (
+                          <div className="bg-amber-50 p-3 rounded-lg mt-2">
+                            <div className="flex items-start">
+                              <AlertTriangle className="h-4 w-4 text-amber-600 mr-2 mt-0.5 flex-shrink-0" />
+                              <div className="text-sm text-amber-800">
+                                <strong>Safety Note:</strong> {phase.safetyNote}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {phase.deliverables && phase.deliverables.length > 0 && (
+                          <div className="bg-green-50 p-3 rounded-lg mt-2">
+                            <div className="font-medium text-sm text-green-800 mb-2">Deliverables:</div>
+                            <ul className="text-xs text-green-700 space-y-1">
+                              {phase.deliverables.map((deliverable, delIndex) => (
+                                <li key={delIndex} className="flex items-start">
+                                  <Star className="h-3 w-3 text-green-600 mr-1 mt-0.5 flex-shrink-0" />
+                                  {deliverable}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Wrench className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                      <p>Installation guide not available</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Installation Costs */}
+                {results.installationGuide?.estimatedCosts && (
+                  <Card className="mt-6">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Installation Cost Breakdown</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-orange-200">Labor & Installation:</span>
+                          <span className="font-medium">
+                            ${((results.installationGuide.estimatedCosts.labor || 0) + 
+                               (results.installationGuide.estimatedCosts.installation || 0)).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-orange-200">Permits & Documentation:</span>
+                          <span className="font-medium">
+                            ${(results.installationGuide.estimatedCosts.permits || 0).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-orange-200">Commissioning & Testing:</span>
+                          <span className="font-medium">
+                            ${(results.installationGuide.estimatedCosts.commissioning || 0).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="border-t pt-2 flex justify-between font-semibold">
+                          <span>Total Installation Cost:</span>
+                          <span>${(results.installationGuide.estimatedCosts.total || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Key Considerations */}
+                {results.installationGuide?.keyConsiderations && 
+                 results.installationGuide.keyConsiderations.length > 0 && (
+                  <div className="bg-orange-400 p-4 rounded-lg mt-6">
+                    <h4 className="font-semibold mb-3">Key Installation Considerations</h4>
+                    <ul className="space-y-2 text-sm text-slate-600">
+                      {results.installationGuide.keyConsiderations.map((consideration, index) => (
+                        <li key={index} className="flex items-start">
+                          <Info className="h-4 w-4 text-blue-500 mr-2 mt-0.5 flex-shrink-0" />
+                          {consideration}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Maintenance Requirements */}
+                {results.installationGuide?.postInstallation && 
+                 results.installationGuide.postInstallation.length > 0 && (
+                  <div className="bg-green-50 p-4 rounded-lg mt-6">
+                    <h4 className="font-semibold text-green-800 mb-3">Post-Installation Maintenance</h4>
+                    <ul className="space-y-2 text-sm text-green-700">
+                      {results.installationGuide.postInstallation.map((item, index) => (
+                        <li key={index} className="flex items-start">
+                          <CheckCircle className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Lebanese Requirements */}
+                {results.installationGuide?.lebanesRequirements && (
+                  <div className="bg-blue-50 p-4 rounded-lg mt-6">
+                    <h4 className="font-semibold text-blue-800 mb-3">Lebanese Regulatory Requirements</h4>
+                    <div className="space-y-2 text-sm text-blue-700">
+                      {results.installationGuide.lebanesRequirements.permits && (
+                        <div className="flex items-start">
+                          <Shield className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <strong>Permits:</strong> {results.installationGuide.lebanesRequirements.permits}
+                          </div>
+                        </div>
+                      )}
+                      {results.installationGuide.lebanesRequirements.inspection && (
+                        <div className="flex items-start">
+                          <CheckCircle className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <strong>Inspection:</strong> {results.installationGuide.lebanesRequirements.inspection}
+                          </div>
+                        </div>
+                      )}
+                      {results.installationGuide.lebanesRequirements.gridConnection && (
+                        <div className="flex items-start">
+                          <Zap className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <strong>Grid Connection:</strong> {results.installationGuide.lebanesRequirements.gridConnection}
+                          </div>
+                        </div>
+                      )}
+                      {results.installationGuide.lebanesRequirements.insurance && (
+                        <div className="flex items-start">
+                          <Shield className="h-4 w-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <strong>Insurance:</strong> {results.installationGuide.lebanesRequirements.insurance}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Safety Information */}
+                <div className="bg-red-50 p-4 rounded-lg mt-6 border border-red-200">
+                  <div className="flex items-start">
+                    <AlertTriangle className="h-5 w-5 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h4 className="font-semibold text-red-800 mb-2">Important Safety Notice</h4>
+                      <p className="text-sm text-red-700">
+                        Solar system installation involves electrical work and must be performed by licensed 
+                        professionals. All work must comply with Lebanese electrical codes and safety standards. 
+                        Improper installation can result in fire hazards, equipment damage, and personal injury.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Warranty Information */}
+                <div className="bg-purple-50 p-4 rounded-lg mt-6">
+                  <h4 className="font-semibold text-purple-800 mb-3 flex items-center">
+                    <Award className="h-5 w-5 mr-2" />
+                    Warranty & Support
+                  </h4>
+                  <div className="space-y-2 text-sm text-purple-700">
+                    <div className="flex items-start">
+                      <CheckCircle className="h-4 w-4 text-purple-600 mr-2 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <strong>Solar Panels:</strong> Typically 25-30 year performance warranty, 
+                        10-15 year product warranty
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <CheckCircle className="h-4 w-4 text-purple-600 mr-2 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <strong>Inverter:</strong> Usually 5-10 year manufacturer warranty 
+                        (extendable in some cases)
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <CheckCircle className="h-4 w-4 text-purple-600 mr-2 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <strong>Batteries:</strong> Warranty varies by type - Lithium: 10+ years, 
+                        Lead-Acid: 2-5 years
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <CheckCircle className="h-4 w-4 text-purple-600 mr-2 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <strong>Installation:</strong> Verify workmanship warranty with your installer 
+                        (typically 1-5 years)
+                      </div>
+                    </div>
+                  </div>
+                  {results.marketNotes?.warrantyNote && (
+                    <div className="mt-3 p-2 bg-purple-100 rounded text-xs text-purple-800">
+                      <Info className="h-3 w-3 inline mr-1" />
+                      {results.marketNotes.warrantyNote}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Next Steps Card */}
+            <Card className="border-2 border-blue-500">
+              <CardHeader className="bg-blue-50">
+                <CardTitle className="flex items-center text-blue-900">
+                  <ArrowRight className="mr-2 h-5 w-5" />
+                  Next Steps
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold mr-3">
+                      1
+                    </div>
+                    <div>
+                      <h5 className="font-semibold mb-1">Contact Licensed Installers</h5>
+                      <p className="text-sm text-gray-400">
+                        Share this report with 2-3 certified Lebanese solar installers to get competitive quotes.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold mr-3">
+                      2
+                    </div>
+                    <div>
+                      <h5 className="font-semibold mb-1">Site Assessment</h5>
+                      <p className="text-sm text-gray-400">
+                        Schedule on-site evaluations to verify roof conditions and finalize system design.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold mr-3">
+                      3
+                    </div>
+                    <div>
+                      <h5 className="font-semibold mb-1">Review Proposals</h5>
+                      <p className="text-sm text-gray-400">
+                        Compare quotes, warranties, equipment brands, and installer credentials.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold mr-3">
+                      4
+                    </div>
+                    <div>
+                      <h5 className="font-semibold mb-1">Secure Financing</h5>
+                      <p className="text-sm text-gray-400">
+                        Arrange payment terms or explore available financing options for solar installations in Lebanon.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold mr-3">
+                      5
+                    </div>
+                    <div>
+                      <h5 className="font-semibold mb-1">Begin Installation</h5>
+                      <p className="text-sm text-gray-400">
+                        Once permits are secured, professional installation typically takes 1-2 weeks.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Call to Action */}
+        <Card className="bg-gradient-to-r from-amber-500 to-orange-500 text-white mt-8">
+          <CardContent className="p-8 text-center">
+            <h3 className="text-2xl font-bold mb-4">Ready to Install Your Solar System?</h3>
+            <p className="text-amber-100 mb-6 max-w-2xl mx-auto">
+              Your technical specifications are complete. Connect with certified Lebanese solar installers 
+              to get detailed quotes and begin your installation process.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button 
+                className="bg-white text-amber-600 hover:bg-gray-100 px-6 py-3 text-lg font-semibold"
+                onClick={() => window.open('mailto:info@solarcalc-lebanon.com?subject=Solar Installation Quote Request&body=Please find my solar system specifications attached.')}
+              >
+                <ArrowRight className="mr-2 h-5 w-5" />
+                Request Installation Quotes
+              </Button>
+              <Button 
+                variant="outline" 
+                className="border-white text-white hover:bg-white/10 px-6 py-3 text-lg font-semibold"
+                onClick={exportTechnicalReport}
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Download Full Report
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default ResultsPage;

@@ -1,0 +1,22 @@
+services:
+  # Backend (Python/Flask)
+  - type: web
+    name: solarcalc-backend
+    runtime: python
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "python backend/server.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        value: 10000
+
+  # Frontend (React)
+  - type: web
+    name: solarcalc-frontend
+    runtime: node
+    buildCommand: "cd frontend && yarn install && yarn build"
+    startCommand: "yarn --cwd frontend start"
+    envVars:
+      - key: NODE_VERSION
+        value: 18
