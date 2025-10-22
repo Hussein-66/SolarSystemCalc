@@ -15,7 +15,7 @@ services:
   - type: web
     name: solarcalc-frontend
     runtime: node
-    buildCommand: "cd frontend && yarn install && yarn build"
+    buildCommand: "npm install -g yarn && cd frontend && yarn install && yarn build"
     startCommand: "yarn --cwd frontend start"
     envVars:
       - key: NODE_VERSION

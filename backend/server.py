@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import psycopg2
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -14,7 +15,15 @@ from contextlib import asynccontextmanager
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+# قراءة الرابط
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+try:
+    conn = psycopg2.connect(DATABASE_URL)
+    print("✅ Connected successfully to Neon database!")
+    conn.close()
+except Exception as e:
+    print("❌ Connection failed:", e)
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
