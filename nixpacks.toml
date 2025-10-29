@@ -1,9 +1,9 @@
 [phases.setup]
-nixPkgs = ["python310", "postgresql"]
+nixPkgs = ["python310Packages.pip", "python310", "postgresql"]
 
 [phases.install]
 # Install dependencies from backend folder
-cmds = ["python3 -m pip install -r backend/requirements.txt"]
+cmds = ["pip3 install -r backend/requirements.txt"]
 
 [start]
 # Start the FastAPI server using uvicorn
