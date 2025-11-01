@@ -1,11 +1,8 @@
 [phases.setup]
-nixPkgs = ["python310Packages.pip", "python310Packages.virtualenv", "python310", "postgresql"]
+nixPkgs = ["python310", "postgresql"]
 
 [phases.install]
-cmds = [
-  "python3 -m venv /opt/venv",
-  "/opt/venv/bin/pip install -r backend/requirements.txt"
-]
+cmds = ["pip install --break-system-packages -r backend/requirements.txt"]
 
 [start]
-cmd = "cd backend && /opt/venv/bin/uvicorn server:app --host 0.0.0.0 --port $PORT"
+cmd = "cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT"
