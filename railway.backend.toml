@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-nixpacksConfigPath = "../nixpacks.toml"
+nixpacksConfigPath = "nixpacks.toml"
 
 [deploy]
 startCommand = "/opt/venv/bin/uvicorn server:app --host 0.0.0.0 --port $PORT"
